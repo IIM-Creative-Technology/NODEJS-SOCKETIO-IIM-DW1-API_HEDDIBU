@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { PublicKey, Connection, clusterApiUrl, Keypair, Transaction } = require('@solana/web3.js');
-const { getMint, getAssociatedTokenAddress, createMintToCheckedInstruction, createTransferCheckedInstruction, getOrCreateAssociatedTokenAccount } = require('@solana/spl-token')
+const { getMint, getAssociatedTokenAddress, createMintToCheckedInstruction, createTransferCheckedInstruction, getOrCreateAssociatedTokenAccount, getAccount } = require('@solana/spl-token')
 const id = require('../id.json')
 const app = express();
 
@@ -24,11 +24,33 @@ app.post('/', async (req, res) => {
   }
   try{
     const mintHash = await generateToken()
-    const transferHash = await sendTokenMinted(address)
+    const transferHash = await sendTokenMinted(address, 1e9)
     res.send({
       status: 'success',
       mint: mintHash,
       transfer: transferHash
+    })
+  } catch {
+    res.status(500).send({
+      status: 'error',
+      text: 'Something went wrong'
+    })
+  }
+})
+
+app.post('/winner', async (req, res) => {
+  const { address } = req.body
+  if(!address) {
+    return res.status(400).send({
+      status: 'error',
+      text: 'Missing address'
+    })
+  }
+  try{
+    const send = await sendTokenMinted(address, 2e9)
+    res.send({
+      status: 'success',
+      transfer: send
     })
   } catch {
     res.status(500).send({
@@ -52,7 +74,7 @@ async function generateToken() {
   return connection.sendTransaction(tx, [keypair])
 }
 
-async function sendTokenMinted(address) {
+async function sendTokenMinted(address, quantity) {
   const toPublicKey = new PublicKey(address);
   const fromTokenAccount = await getAssociatedTokenAddress(mint, keypair.publicKey);
   const toTokenAccount = await getOrCreateAssociatedTokenAccount(connection, fromTokenAccount, mint, toPublicKey);
@@ -62,7 +84,7 @@ async function sendTokenMinted(address) {
       mint, 
       toTokenAccount.address,
       keypair.publicKey,
-      1e9, 
+      quantity, 
       9 
     )
   );
